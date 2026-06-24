@@ -1,0 +1,240 @@
+# ClapClip - API & Database Specification (Phase 2)
+
+This document specifies the SQLite database schema and backend HTTP API endpoints implemented for the YouTube integration, secure server-side credential management, and settings dashboard workflow.
+
+---
+
+## 💾 SQLite Database Schema
+
+The SQLite database file `clipper.db` is stored in the root directory. Foreign keys are enabled (`PRAGMA foreign_keys = ON;`).
+
+### 1. `channels` Table
+Stores YouTube channel details, developer secrets, OAuth2 tokens, and status.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `channel_id` | TEXT | PRIMARY KEY | Unique YouTube channel ID (e.g. `UC...`) |
+| `channel_name` | TEXT | | Channel title |
+| `channel_avatar` | TEXT | | URL to channel's default avatar thumbnail |
+| `client_id` | TEXT | | Google OAuth 2.0 Web Client ID |
+| `client_secret` | TEXT | | Google OAuth 2.0 Web Client Secret |
+| `access_token` | TEXT | | Active Google API Access Token |
+| `refresh_token` | TEXT | | Google API Refresh Token |
+| `expires_at` | INTEGER | | Unix timestamp (ms) when the access token expires |
+| `status` | TEXT | DEFAULT 'connected' | Health status (`connected`, `expired`, `needs_reauth`) |
+| `created_at` | INTEGER | | Unix timestamp (ms) of creation |
+
+### 2. `playlists` Table
+Caches user playlists fetched from the YouTube Data API.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `playlist_id` | TEXT | PRIMARY KEY | Unique YouTube playlist ID (e.g. `PL...`) |
+| `channel_id` | TEXT | REFERENCES `channels`(`channel_id`) ON DELETE CASCADE | Associated YouTube channel ID |
+| `title` | TEXT | | Title of the playlist |
+| `synced_at` | INTEGER | | Unix timestamp (ms) when the playlist was cached |
+
+### 3. `uploads` Table
+Logs clip publication metrics and history statuses.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique log ID |
+| `video_id` | TEXT | | Source YouTube video ID (clipped video) |
+| `title` | TEXT | | Uploaded clip title |
+| `start_time` | REAL | | Clipper segment start boundary (seconds) |
+| `end_time` | REAL | | Clipper segment end boundary (seconds) |
+| `playlist_id` | TEXT | | Target playlist ID (null if uploaded to channel only) |
+| `channel_id` | TEXT | REFERENCES `channels`(`channel_id`) ON DELETE CASCADE | Target YouTube channel ID |
+| `status` | TEXT | DEFAULT 'pending' | Status (`pending`, `uploading`, `completed`, `failed`) |
+| `error_message` | TEXT | | Stderr log or API error detail if status is `failed` |
+| `youtube_video_id`| TEXT | | Generated YouTube video ID once uploaded |
+| `created_at` | INTEGER | | Unix timestamp (ms) when the upload began |
+
+---
+
+## 🌐 Backend HTTP API Endpoints
+
+All endpoints are hosted locally under the custom Connect middleware on `http://localhost:5173`.
+
+### 1. Channel Operations
+
+#### `GET /api/channels`
+Retrieves public metadata of all authorized YouTube channels.
+* **Request**: (None)
+* **Response**: `200 OK`
+  ```json
+  [
+    {
+      "channelId": "UC...",
+      "channelName": "Channel Name",
+      "channelAvatar": "https://lh3.googleusercontent.com/...",
+      "expiresAt": 1781615467000,
+      "status": "connected"
+    }
+  ]
+  ```
+
+#### `POST /api/channels/delete`
+Disconnects a YouTube channel and purges all of its cached data.
+* **Request Body**:
+  ```json
+  {
+    "channelId": "UC..."
+  }
+  ```
+* **Response**: `200 OK`
+  ```json
+  {
+    "success": true
+  }
+  ```
+
+---
+
+### 2. Playlist Operations
+
+#### `POST /api/playlists`
+Retrieves cached playlists for the given channel. If the cache is empty, it automatically triggers a sync.
+* **Request Body**:
+  ```json
+  {
+    "channelId": "UC..."
+  }
+  ```
+* **Response**: `200 OK`
+  ```json
+  {
+    "playlists": [
+      {
+        "id": "PL...",
+        "title": "My Playlist"
+      }
+    ]
+  }
+  ```
+
+#### `POST /api/playlists/sync`
+Bypasses local cache, pulls fresh playlists directly from YouTube, updates the database cache, and returns the list.
+* **Request Body**:
+  ```json
+  {
+    "channelId": "UC..."
+  }
+  ```
+* **Response**: `200 OK`
+  ```json
+  {
+    "playlists": [
+      {
+        "id": "PL...",
+        "title": "My Playlist"
+      }
+    ]
+  }
+  ```
+
+---
+
+### 3. Upload History Logs
+
+#### `GET /api/uploads`
+Fetches full metrics log history records for all connected channels.
+* **Request**: (None)
+* **Response**: `200 OK`
+  ```json
+  [
+    {
+      "id": 1,
+      "videoId": "dQw4w9WgXcQ",
+      "title": "Clipped Moment",
+      "startTime": 5.2,
+      "endTime": 12.8,
+      "playlistId": "PL...",
+      "channelId": "UC...",
+      "status": "completed",
+      "errorMessage": null,
+      "youtubeVideoId": "aBcD123XyZ",
+      "createdAt": 1781615200000,
+      "channelName": "Test Channel",
+      "playlistTitle": "My Playlist"
+    }
+  ]
+  ```
+
+---
+
+### 4. Video Clipping & Publishing
+
+#### `POST /api/upload-youtube`
+Clips a YouTube video segment locally, publishes the MP4 directly to the target YouTube channel, and attaches it to the selected playlist.
+* **Request Body**:
+  ```json
+  {
+    "v": "dQw4w9WgXcQ",
+    "start": 12.5,
+    "end": 22.0,
+    "title": "Hilarious Clip",
+    "description": "My trimmed clip description",
+    "playlistId": "PL...",
+    "channelId": "UC..."
+  }
+  ```
+* **Workflow**:
+  1. Creates a log in `uploads` table with status `pending`.
+  2. Resolves and refreshes Google OAuth tokens from the `channels` table matching `channelId`.
+  3. Updates log status to `uploading`.
+  4. Trims the segment using `yt-dlp` and `ffmpeg` locally.
+  5. Performs a multipart related upload to the YouTube Data API.
+  6. Inserts the video item into `playlistId` (if provided).
+  7. Updates log status to `completed` and logs `youtubeVideoId`.
+  8. Deletes the local `.mp4` file.
+* **Response**: `200 OK`
+  ```json
+  {
+    "success": true,
+    "videoId": "aBcD123XyZ",
+    "youtubeUrl": "https://www.youtube.com/watch?v=aBcD123XyZ"
+  }
+  ```
+
+#### `GET /api/download`
+Streams local MP4 file clip trim download to client.
+* **URL Parameters**:
+  - `v`: YouTube video ID (Required)
+  - `start`: Segment start seconds (Required)
+  - `end`: Segment end seconds (Required)
+  - `title`: Desired file name (Optional)
+* **Response**: `200 OK` with header `Content-Disposition: attachment; filename="..."` and video stream.
+
+---
+
+### 5. Google OAuth Consent Redirects
+
+#### `GET /api/auth`
+Redirects authorization popup window to Google Consent screen.
+* **URL Parameters**:
+  - `clientId`: Google Developer OAuth Client ID (Required)
+  - `clientSecret`: Google Developer OAuth Client Secret (Required)
+* **Response**: `302 Found` (Redirects to accounts.google.com/o/oauth2/v2/auth).
+
+#### `GET /api/callback`
+Exchanges the Google authorization code for access and refresh tokens, queries YouTube channel details, saves credentials securely to the SQLite database, and returns a postMessage success script to close the popup window.
+* **URL Parameters**:
+  - `code`: Google OAuth callback authorization code.
+  - `state`: Base64 encoded JSON string holding `clientId` and `clientSecret`.
+* **Response**: `200 OK` HTML payload containing:
+  ```html
+  <script>
+    window.opener.postMessage({
+      type: 'YOUTUBE_AUTH_SUCCESS',
+      data: {
+        channelId: "UC...",
+        channelName: "Channel Name",
+        channelAvatar: "...",
+        status: "connected"
+      }
+    }, window.location.origin);
+    window.close();
+  </script>
+  ```

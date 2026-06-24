@@ -1,0 +1,56 @@
+# ClapClip - Premium YouTube Clipper App
+
+ClapClip is a highly responsive, modern, and beautiful single-page web application that lets you load YouTube videos, visually clip custom segments, loop them, catalog them locally, and share interactive clips via URLs.
+
+---
+
+## 🎨 Visual Design & Theme
+
+The app features a state-of-the-art **glassmorphic dark-theme** aesthetic built with vanilla CSS.
+- **Deep Slate Canvas**: Radial glow backdrop (`#060913` transitioning to deep indigos).
+- **Glass Card Containers**: semi-transparent cards with frosted borders (`backdrop-filter: blur(16px)`).
+- **Vibrant Accents**: Indigo (`#6366f1`) and Neon Purple (`#a855f7`) gradients highlighting active areas.
+- **Micro-interactions**: Subtle hover elevations, active compression transitions, smooth copy success alerts, and animations.
+
+---
+
+## 🚀 Key Features
+
+1. **Flexible YouTube Parser**: Extract 11-digit YouTube video IDs automatically from standard watch URLs, share links (`youtu.be`), embed links, or Shorts URLs.
+2. **Official YouTube Player Iframe API Integration**: Responsive player embedding supporting status monitoring (playing, paused, buffering) and custom timelines.
+3. **Double-Handle Range Selection**: Interactive dual-handle timeline sliders paired with numeric input controls to adjust the start and end of clips down to $0.1$ second precision.
+4. **Instant Clipping & Looping**: Custom interval loops that immediately repeat the clip segment when it hits the end boundary.
+5. **Local Library Persistence**: Save metadata (title, tags, description, timestamps, and thumbnail) into the browser's `localStorage` to manage clips across page sessions.
+6. **Smart Query Parameter Sharing**: Generate instant share URLs with query parameters (`?v=ID&start=X&end=Y&title=TITLE`) to launch the exact video segment on load.
+
+---
+
+## 📂 Architecture & Files
+
+The project contains the following file structures:
+
+- **[index.html](file:///c:/mama%201st%20project/index.html)**: Main skeleton structured with semantic HTML5 elements. Contains player grid, saved cards panel, and the interactive clipboard share modal.
+- **[package.json](file:///c:/mama%201st%20project/package.json)**: Node scripts configuration utilizing Vite dev tools.
+- **[src/style.css](file:///c:/mama%201st%20project/src/style.css)**: Vanilla CSS file containing variable tokens, custom ranges, scrollbars, responsive rules, and keyframes.
+- **[src/player.js](file:///c:/mama%201st%20project/src/player.js)**: Handles loading the official YouTube API script, URL matches, and active playback intervals to trigger boundary loops.
+- **[src/storage.js](file:///c:/mama%201st%20project/src/storage.js)**: Performs database reading, writing, and deletion tasks on browser storage.
+- **[src/main.js](file:///c:/mama%201st%20project/src/main.js)**: Coordinates app state, DOM event listeners, slider sync math, sharing modals, and URL parsing.
+
+---
+
+## ⚡ Setup & Run Instructions
+
+To run the application locally on your computer:
+
+1. **Install Dev Server Dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Start the Development Server**:
+   ```bash
+   npm run dev
+   ```
+
+3. **Open in Browser**:
+   Open the address provided by Vite in your terminal (typically `http://localhost:5173`).
