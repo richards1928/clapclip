@@ -1,0 +1,13 @@
+node_modules
+.env
+clipper.db
+backups
+logs
+temp
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+*.db-shm
+*.db-wal
+*.log

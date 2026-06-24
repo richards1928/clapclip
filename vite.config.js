@@ -380,6 +380,17 @@ export default defineConfig(({ mode }) => {
             next();
           });
 
+          // GET /api/health: Health check endpoint
+          server.middlewares.use('/api/health', (req, res, next) => {
+            if (req.method === 'GET' && (req.url === '/' || req.url === '' || req.url.startsWith('/?'))) {
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
+              return;
+            }
+            next();
+          });
+
           // 0. GET /api/config: Return environment credentials configuration status
           server.middlewares.use('/api/config', (req, res, next) => {
             if (req.method === 'GET' && (req.url === '/' || req.url === '' || req.url.startsWith('/?'))) {

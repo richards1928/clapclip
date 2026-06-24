@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  clapclip:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=production
+      # Google OAuth secrets loaded from host shell environment or .env
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - API_SECRET=${API_SECRET}
+    volumes:
+      # Persistent volume for the SQLite database file
+      - clipper_db:/app/database
+      # Persistent volume for backups
+      - backups_volume:/app/backups
+      # Persistent volume for audit and error logs
+      - logs_volume:/app/logs
+    restart: unless-stopped
+
+volumes:
+  clipper_db:
+  backups_volume:
+  logs_volume:
