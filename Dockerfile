@@ -15,7 +15,7 @@ RUN npm run build
 FROM node:20-alpine AS runner
 
 # Install system utilities: ffmpeg, python3 (for yt-dlp script runner), and curl (for healthcheck)
-RUN apk add --no-cache ffmpeg python3 curl
+RUN apk add --no-cache ffmpeg python3 curl nodejs npm
 
 WORKDIR /app
 
@@ -46,7 +46,7 @@ EXPOSE 5173
 
 # Docker healthcheck configuration
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-  CMD curl -f http://localhost:5173/api/health || exit 1
+    CMD curl -f http://localhost:5173/api/health || exit 1
 
 # Start server binding globally to allow external routing
 CMD ["npx", "vite", "--host", "0.0.0.0"]

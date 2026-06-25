@@ -45,7 +45,7 @@ function downloadFile(urlStr, dest) {
 
       // Restrict domain to GitHub release hosts
       const allowedHostSuffixes = ['github.com', 'githubusercontent.com', 'amazonaws.com'];
-      const isAllowedHost = allowedHostSuffixes.some(suffix => 
+      const isAllowedHost = allowedHostSuffixes.some(suffix =>
         parsedUrl.hostname === suffix || parsedUrl.hostname.endsWith('.' + suffix)
       );
 
@@ -65,12 +65,12 @@ function downloadFile(urlStr, dest) {
       }
 
       const file = fs.createWriteStream(dest);
-      
+
       const request = https.get(urlStr, (response) => {
         // Handle redirect status codes (3xx)
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
           file.close();
-          fs.unlink(dest, () => {}); // Clean up temp stream file
+          fs.unlink(dest, () => { }); // Clean up temp stream file
           // Follow redirect recursively
           downloadFile(response.headers.location, dest).then(resolve).catch(reject);
           return;
@@ -78,7 +78,7 @@ function downloadFile(urlStr, dest) {
 
         if (response.statusCode !== 200) {
           file.close();
-          fs.unlink(dest, () => {});
+          fs.unlink(dest, () => { });
           reject(new Error(`Failed to download: server returned status code ${response.statusCode}`));
           return;
         }
@@ -94,7 +94,7 @@ function downloadFile(urlStr, dest) {
 
       request.on('error', (err) => {
         file.close();
-        fs.unlink(dest, () => {});
+        fs.unlink(dest, () => { });
         reject(err);
       });
     } catch (err) {
@@ -149,26 +149,26 @@ const MAX_LIMIT = 100;
 function rateLimiter(req, res, next) {
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
   const now = Date.now();
-  
+
   let clientRecord = rateLimitDb.get(ip);
   if (!clientRecord) {
     clientRecord = { count: 0, resetTime: now + WINDOW_MS };
     rateLimitDb.set(ip, clientRecord);
   }
-  
+
   if (now > clientRecord.resetTime) {
     clientRecord.count = 0;
     clientRecord.resetTime = now + WINDOW_MS;
   }
-  
+
   clientRecord.count += 1;
   const remaining = Math.max(0, MAX_LIMIT - clientRecord.count);
   const resetSeconds = Math.ceil((clientRecord.resetTime - now) / 1000);
-  
+
   res.setHeader('X-RateLimit-Limit', MAX_LIMIT.toString());
   res.setHeader('X-RateLimit-Remaining', remaining.toString());
   res.setHeader('X-RateLimit-Reset', resetSeconds.toString());
-  
+
   if (clientRecord.count > MAX_LIMIT) {
     logAuditEvent('rate_limit_exceeded', { ip, url: req.url, count: clientRecord.count });
     res.statusCode = 429;
@@ -238,14 +238,14 @@ async function getValidAccessTokenForChannel(channelId) {
   }
 
   const { access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt, client_id: clientId, client_secret: clientSecret } = creds;
-  
+
   // If token is still valid (not expiring in next 2 minutes), return it
   if (expiresAt && Date.now() < (expiresAt - 120000)) {
     return accessToken;
   }
 
   console.log(`[ClapClip Dev Server] Access token for channel ${channelId} expired or expiring soon, refreshing...`);
-  
+
   const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -266,7 +266,7 @@ async function getValidAccessTokenForChannel(channelId) {
   const data = await refreshRes.json();
   const newAccessToken = data.access_token;
   const newExpiresAt = Date.now() + (data.expires_in * 1000);
-  
+
   await db.updateChannelTokens(channelId, newAccessToken, newExpiresAt);
   return newAccessToken;
 }
@@ -321,7 +321,7 @@ export default defineConfig(({ mode }) => {
             res.setHeader('X-Frame-Options', 'DENY');
             res.setHeader('X-Content-Type-Options', 'nosniff');
             res.setHeader('Referrer-Policy', 'no-referrer');
-            
+
             const csp = [
               "default-src 'self'",
               "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com https://s.ytimg.com",
@@ -419,7 +419,7 @@ export default defineConfig(({ mode }) => {
             // Encode secrets into state param to receive them back in callback (stateless oauth)
             const state = Buffer.from(JSON.stringify({ clientId, clientSecret })).toString('base64');
             const redirectUri = `http://localhost:5173/api/callback`;
-            
+
             const scopes = [
               'https://www.googleapis.com/auth/youtube.upload',
               'https://www.googleapis.com/auth/youtube.readonly',
@@ -564,437 +564,463 @@ export default defineConfig(({ mode }) => {
             }
           });
 
-        // 3. GET/DELETE /api/channels: Channel retrieval/deletion APIs
-        server.middlewares.use('/api/channels', async (req, res, next) => {
-          if (req.method === 'GET' && (req.url === '/' || req.url === '' || req.url.startsWith('/?'))) {
-            try {
-              const channels = await db.getChannels();
-              res.statusCode = 200;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify(channels));
-            } catch (err) {
-              console.error('[ClapClip Channels GET Error]:', err);
-              res.statusCode = 500;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: err.message }));
-            }
-            return;
-          }
-
-          if (req.method === 'POST' && (req.url === '/delete' || req.url.startsWith('/delete?'))) {
-            let body = '';
-            req.on('data', chunk => { body += chunk; });
-            req.on('end', async () => {
+          // 3. GET/DELETE /api/channels: Channel retrieval/deletion APIs
+          server.middlewares.use('/api/channels', async (req, res, next) => {
+            if (req.method === 'GET' && (req.url === '/' || req.url === '' || req.url.startsWith('/?'))) {
               try {
-                const { channelId } = JSON.parse(body);
-                if (!channelId) {
-                  res.statusCode = 400;
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ error: 'Missing channelId' }));
-                  return;
-                }
-                await db.deleteChannel(channelId);
+                const channels = await db.getChannels();
                 res.statusCode = 200;
                 res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ success: true }));
+                res.end(JSON.stringify(channels));
               } catch (err) {
-                console.error('[ClapClip Channel DELETE Error]:', err);
+                console.error('[ClapClip Channels GET Error]:', err);
                 res.statusCode = 500;
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify({ error: err.message }));
               }
-            });
-            return;
-          }
-          next();
-        });
+              return;
+            }
 
-        // 4. POST /api/playlists: Fetch user playlists cached, or force sync
-        server.middlewares.use('/api/playlists', async (req, res, next) => {
-          if (req.method === 'POST') {
+            if (req.method === 'POST' && (req.url === '/delete' || req.url.startsWith('/delete?'))) {
+              let body = '';
+              req.on('data', chunk => { body += chunk; });
+              req.on('end', async () => {
+                try {
+                  const { channelId } = JSON.parse(body);
+                  if (!channelId) {
+                    res.statusCode = 400;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ error: 'Missing channelId' }));
+                    return;
+                  }
+                  await db.deleteChannel(channelId);
+                  res.statusCode = 200;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ success: true }));
+                } catch (err) {
+                  console.error('[ClapClip Channel DELETE Error]:', err);
+                  res.statusCode = 500;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ error: err.message }));
+                }
+              });
+              return;
+            }
+            next();
+          });
+
+          // 4. POST /api/playlists: Fetch user playlists cached, or force sync
+          server.middlewares.use('/api/playlists', async (req, res, next) => {
+            if (req.method === 'POST') {
+              let body = '';
+              req.on('data', chunk => { body += chunk; });
+              req.on('end', async () => {
+                try {
+                  const { channelId } = JSON.parse(body);
+                  if (!channelId) {
+                    res.statusCode = 400;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ error: 'Missing channelId' }));
+                    return;
+                  }
+
+                  if (req.url === '/sync' || req.url.startsWith('/sync?')) {
+                    const playlists = await syncChannelPlaylists(channelId);
+                    res.statusCode = 200;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ playlists }));
+                  } else {
+                    let playlists = await db.getCachedPlaylists(channelId);
+                    if (playlists.length === 0) {
+                      playlists = await syncChannelPlaylists(channelId);
+                    }
+                    res.statusCode = 200;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ playlists }));
+                  }
+                } catch (err) {
+                  console.error('[ClapClip Playlists Error]:', err);
+                  res.statusCode = 500;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ error: err.message }));
+                }
+              });
+              return;
+            }
+            next();
+          });
+
+          // 5. GET /api/uploads: Fetch upload log history metrics
+          server.middlewares.use('/api/uploads', async (req, res, next) => {
+            if (req.method === 'GET' && (req.url === '/' || req.url === '' || req.url.startsWith('/?'))) {
+              try {
+                const logs = await db.getUploadLogs();
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(logs));
+              } catch (err) {
+                console.error('[ClapClip Upload Logs Error]:', err);
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: err.message }));
+              }
+              return;
+            }
+            next();
+          });
+
+          // 6. POST /api/upload-youtube: Download clip, upload to YouTube and assign to playlist
+          server.middlewares.use('/api/upload-youtube', async (req, res) => {
+            if (req.method !== 'POST') {
+              res.statusCode = 405;
+              res.end('Method Not Allowed');
+              return;
+            }
+
+            if (uploadQueue.length >= MAX_QUEUE_SIZE) {
+              res.statusCode = 503;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'Upload queue is full. Please try again later.' }));
+              return;
+            }
+
             let body = '';
             req.on('data', chunk => { body += chunk; });
             req.on('end', async () => {
-              try {
-                const { channelId } = JSON.parse(body);
-                if (!channelId) {
-                  res.statusCode = 400;
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ error: 'Missing channelId' }));
-                  return;
-                }
+              const runJob = async () => {
+                let child = null;
+                let outputPath = null;
+                let logId = null;
 
-                if (req.url === '/sync' || req.url.startsWith('/sync?')) {
-                  const playlists = await syncChannelPlaylists(channelId);
-                  res.statusCode = 200;
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ playlists }));
-                } else {
-                  let playlists = await db.getCachedPlaylists(channelId);
-                  if (playlists.length === 0) {
-                    playlists = await syncChannelPlaylists(channelId);
+                try {
+                  const payload = JSON.parse(body);
+                  const { v, start, end, title, description, playlistId, channelId } = payload;
+
+                  if (!v || !channelId) {
+                    res.statusCode = 400;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ error: 'Missing parameter v or channelId' }));
+                    return;
                   }
-                  res.statusCode = 200;
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ playlists }));
-                }
-              } catch (err) {
-                console.error('[ClapClip Playlists Error]:', err);
-                res.statusCode = 500;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: err.message }));
-              }
-            });
-            return;
-          }
-          next();
-        });
 
-        // 5. GET /api/uploads: Fetch upload log history metrics
-        server.middlewares.use('/api/uploads', async (req, res, next) => {
-          if (req.method === 'GET' && (req.url === '/' || req.url === '' || req.url.startsWith('/?'))) {
-            try {
-              const logs = await db.getUploadLogs();
-              res.statusCode = 200;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify(logs));
-            } catch (err) {
-              console.error('[ClapClip Upload Logs Error]:', err);
-              res.statusCode = 500;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ error: err.message }));
-            }
-            return;
-          }
-          next();
-        });
+                  if (!validateVideoId(v)) {
+                    res.statusCode = 400;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ error: 'Invalid YouTube video ID format' }));
+                    return;
+                  }
 
-        // 6. POST /api/upload-youtube: Download clip, upload to YouTube and assign to playlist
-        server.middlewares.use('/api/upload-youtube', async (req, res) => {
-          if (req.method !== 'POST') {
-            res.statusCode = 405;
-            res.end('Method Not Allowed');
-            return;
-          }
+                  // Create database metrics record log
+                  logId = await db.createUploadLog({ videoId: v, title, startTime: start, endTime: end, playlistId, channelId });
+                  await db.updateUploadLog(logId, 'uploading');
 
-          if (uploadQueue.length >= MAX_QUEUE_SIZE) {
-            res.statusCode = 503;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'Upload queue is full. Please try again later.' }));
-            return;
-          }
+                  // A. Get fresh token
+                  const accessToken = await getValidAccessTokenForChannel(channelId);
 
-          let body = '';
-          req.on('data', chunk => { body += chunk; });
-          req.on('end', async () => {
-            const runJob = async () => {
-              let child = null;
-              let outputPath = null;
-              let logId = null;
+                  // B. Clip video locally using yt-dlp & ffmpeg
+                  const ytdlpPath = await ensureYtdlpBinary();
+                  const tempDir = path.join(__dirname, 'temp');
+                  if (!fs.existsSync(tempDir)) {
+                    fs.mkdirSync(tempDir, { recursive: true });
+                  }
 
-              try {
-                const payload = JSON.parse(body);
-                const { v, start, end, title, description, playlistId, channelId } = payload;
+                  const safeTitle = title.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+                  outputPath = path.join(tempDir, `upload_${safeTitle}_${Date.now()}.mp4`);
 
-                if (!v || !channelId) {
-                  res.statusCode = 400;
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ error: 'Missing parameter v or channelId' }));
-                  return;
-                }
+                  const fullVideoPath = path.join(
+                    tempDir,
+                    `source_${safeTitle}_${Date.now()}.mp4`
+                  );
 
-                if (!validateVideoId(v)) {
-                  res.statusCode = 400;
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ error: 'Invalid YouTube video ID format' }));
-                  return;
-                }
+                  const ytdlpArgs = [
+                    '--js-runtimes', 'node',
+                    '-f', '18',
+                    `https://www.youtube.com/watch?v=${v}`,
+                    '-o', fullVideoPath
+                  ];
+                  console.log(`[ClapClip Dev Server] Clipping for upload: v=${v}, range=${start}-${end}`);
 
-                logAuditEvent('upload_started', { videoId: v, title, startTime: start, endTime: end, playlistId, channelId });
+                  child = spawn(ytdlpPath, ytdlpArgs);
 
-                // Create database metrics record log
-                logId = await db.createUploadLog({ videoId: v, title, startTime: start, endTime: end, playlistId, channelId });
-                await db.updateUploadLog(logId, 'uploading');
+                  let stderrLog = '';
+                  child.stderr.on('data', (data) => {
+                    stderrLog += data.toString();
+                  });
 
-                // A. Get fresh token
-                const accessToken = await getValidAccessTokenForChannel(channelId);
+                  // Promise wrapper for child process
+                  await new Promise((resolve, reject) => {
+                    child.on('close', (code) => {
+                      if (code !== 0) {
+                        reject(new Error(`yt-dlp failed: ${stderrLog}`));
+                      } else {
+                        resolve();
+                      }
+                    });
+                    req.on('close', () => {
+                      if (child && !child.killed) child.kill();
+                    });
+                  });
 
-                // B. Clip video locally using yt-dlp & ffmpeg
-                const ytdlpPath = await ensureYtdlpBinary();
-                const tempDir = path.join(__dirname, 'temp');
-                if (!fs.existsSync(tempDir)) {
-                  fs.mkdirSync(tempDir, { recursive: true });
-                }
+                  console.log(`[ClapClip Dev Server] Trimming ${start}s -> ${end}s`);
 
-                const safeTitle = title.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
-                outputPath = path.join(tempDir, `upload_${safeTitle}_${Date.now()}.mp4`);
+                  await new Promise((resolve, reject) => {
+                    const ffmpeg = spawn(ffmpegPath, [
+                      '-y',
+                      '-ss', String(start),
+                      '-i', fullVideoPath,
+                      '-t', String(end - start),
+                      '-c:v', 'libx264',
+                      '-c:a', 'aac',
+                      outputPath
+                    ]);
 
-                const ytdlpArgs = [
-                  '--ffmpeg-location', ffmpegPath,
-                  '--js-runtimes', 'node',
-                  '--download-sections', `*${start}-${end}`,
-                  '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-                  '--merge-output-format', 'mp4',
-                  `https://www.youtube.com/watch?v=${v}`,
-                  '-o', outputPath
-                ];
+                    let ffmpegErr = '';
 
-                console.log(`[ClapClip Dev Server] Clipping for upload: v=${v}, range=${start}-${end}`);
-                
-                child = spawn(ytdlpPath, ytdlpArgs);
+                    ffmpeg.stderr.on('data', (data) => {
+                      ffmpegErr += data.toString();
+                    });
 
-                let stderrLog = '';
-                child.stderr.on('data', (data) => {
-                  stderrLog += data.toString();
-                });
+                    ffmpeg.on('close', (code) => {
+                      if (code !== 0) {
+                        reject(new Error(`ffmpeg trim failed: ${ffmpegErr}`));
+                      } else {
+                        resolve();
+                      }
+                    });
+                  });
 
-                // Promise wrapper for child process
-                await new Promise((resolve, reject) => {
-                  child.on('close', (code) => {
-                    if (code !== 0) {
-                      reject(new Error(`yt-dlp failed: ${stderrLog}`));
-                    } else {
-                      resolve();
+                  fs.unlink(fullVideoPath, () => { });
+
+                  if (!fs.existsSync(outputPath)) {
+                    throw new Error('Trimmed clip not found');
+                  }
+
+                  // C. Upload file to YouTube via multipart related API
+                  console.log(`[ClapClip Dev Server] Uploading file to YouTube: ${outputPath}`);
+                  const fileBuffer = fs.readFileSync(outputPath);
+                  const boundary = '-------314159265358979323846';
+
+                  const metadata = {
+                    snippet: {
+                      title: title,
+                      description: description || 'Clipped using ClapClip App',
+                      categoryId: '22'
+                    },
+                    status: {
+                      privacyStatus: 'public',
+                      selfDeclaredMadeForKids: false
                     }
-                  });
-                  req.on('close', () => {
-                    if (child && !child.killed) child.kill();
-                  });
-                });
+                  };
 
-                if (!fs.existsSync(outputPath)) {
-                  throw new Error('Clipping complete but output file not found on server');
-                }
+                  const headerPart =
+                    `--${boundary}\r\n` +
+                    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+                    JSON.stringify(metadata) + `\r\n`;
 
-                // C. Upload file to YouTube via multipart related API
-                console.log(`[ClapClip Dev Server] Uploading file to YouTube: ${outputPath}`);
-                const fileBuffer = fs.readFileSync(outputPath);
-                const boundary = '-------314159265358979323846';
-                
-                const metadata = {
-                  snippet: {
-                    title: title,
-                    description: description || 'Clipped using ClapClip App',
-                    categoryId: '22'
-                  },
-                  status: {
-                    privacyStatus: 'public',
-                    selfDeclaredMadeForKids: false
-                  }
-                };
+                  const mediaPartHeader =
+                    `--${boundary}\r\n` +
+                    `Content-Type: video/mp4\r\n\r\n`;
 
-                const headerPart = 
-                  `--${boundary}\r\n` +
-                  `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
-                  JSON.stringify(metadata) + `\r\n`;
+                  const footerPart = `\r\n--${boundary}--`;
 
-                const mediaPartHeader = 
-                  `--${boundary}\r\n` +
-                  `Content-Type: video/mp4\r\n\r\n`;
+                  const bodyBuffer = Buffer.concat([
+                    Buffer.from(headerPart, 'utf-8'),
+                    Buffer.from(mediaPartHeader, 'utf-8'),
+                    fileBuffer,
+                    Buffer.from(footerPart, 'utf-8')
+                  ]);
 
-                const footerPart = `\r\n--${boundary}--`;
-
-                const bodyBuffer = Buffer.concat([
-                  Buffer.from(headerPart, 'utf-8'),
-                  Buffer.from(mediaPartHeader, 'utf-8'),
-                  fileBuffer,
-                  Buffer.from(footerPart, 'utf-8')
-                ]);
-
-                const uploadRes = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=multipart&part=snippet,status', {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': `multipart/related; boundary=${boundary}`,
-                    'Content-Length': bodyBuffer.length.toString()
-                  },
-                  body: bodyBuffer
-                });
-
-                if (!uploadRes.ok) {
-                  const errText = await uploadRes.text();
-                  throw new Error(`YouTube Upload API failed: ${errText}`);
-                }
-
-                const uploadData = await uploadRes.json();
-                const newVideoId = uploadData.id;
-                console.log(`[ClapClip Dev Server] Uploaded successfully: videoId = ${newVideoId}`);
-
-                // D. Add uploaded video to playlist (if playlist selected)
-                if (playlistId) {
-                  console.log(`[ClapClip Dev Server] Assigning video ${newVideoId} to playlist ${playlistId}`);
-                  const playlistItemRes = await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet', {
+                  const uploadRes = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=multipart&part=snippet,status', {
                     method: 'POST',
                     headers: {
                       'Authorization': `Bearer ${accessToken}`,
-                      'Content-Type': 'application/json'
+                      'Content-Type': `multipart/related; boundary=${boundary}`,
+                      'Content-Length': bodyBuffer.length.toString()
                     },
-                    body: JSON.stringify({
-                      snippet: {
-                        playlistId: playlistId,
-                        resourceId: {
-                          kind: 'youtube#video',
-                          videoId: newVideoId
-                        }
-                      }
-                    })
+                    body: bodyBuffer
                   });
 
-                  if (!playlistItemRes.ok) {
-                    const errText = await playlistItemRes.text();
-                    console.error(`[ClapClip Dev Server] Playlist assignment failed: ${errText}`);
-                    logAuditEvent('playlist_assignment', { status: 'failed', videoId: newVideoId, playlistId, error: errText });
-                  } else {
-                    console.log(`[ClapClip Dev Server] Added video to playlist successfully.`);
-                    logAuditEvent('playlist_assignment', { status: 'success', videoId: newVideoId, playlistId });
+                  if (!uploadRes.ok) {
+                    const errText = await uploadRes.text();
+                    throw new Error(`YouTube Upload API failed: ${errText}`);
                   }
+
+                  const uploadData = await uploadRes.json();
+                  const newVideoId = uploadData.id;
+                  console.log(`[ClapClip Dev Server] Uploaded successfully: videoId = ${newVideoId}`);
+
+                  // D. Add uploaded video to playlist (if playlist selected)
+                  if (playlistId) {
+                    console.log(`[ClapClip Dev Server] Assigning video ${newVideoId} to playlist ${playlistId}`);
+                    const playlistItemRes = await fetch('https://www.googleapis.com/youtube/v3/playlistItems?part=snippet', {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({
+                        snippet: {
+                          playlistId: playlistId,
+                          resourceId: {
+                            kind: 'youtube#video',
+                            videoId: newVideoId
+                          }
+                        }
+                      })
+                    });
+
+                    if (!playlistItemRes.ok) {
+                      const errText = await playlistItemRes.text();
+                      console.error(`[ClapClip Dev Server] Playlist assignment failed: ${errText}`);
+                      logAuditEvent('playlist_assignment', { status: 'failed', videoId: newVideoId, playlistId, error: errText });
+                    } else {
+                      console.log(`[ClapClip Dev Server] Added video to playlist successfully.`);
+                      logAuditEvent('playlist_assignment', { status: 'success', videoId: newVideoId, playlistId });
+                    }
+                  }
+
+                  // Update upload log state
+                  await db.updateUploadLog(logId, 'completed', { youtubeVideoId: newVideoId });
+                  logAuditEvent('upload_completed', { videoId: v, youtubeVideoId: newVideoId, channelId });
+
+                  // E. Clean up local file
+                  fs.unlink(outputPath, (err) => {
+                    if (err) console.error('[ClapClip Dev Server] Error deleting upload file:', err);
+                  });
+
+                  // F. Respond back
+                  res.statusCode = 200;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({
+                    success: true,
+                    videoId: newVideoId,
+                    youtubeUrl: `https://www.youtube.com/watch?v=${newVideoId}`
+                  }));
+
+                } catch (err) {
+                  console.error('[ClapClip Upload Server Error]:', err);
+
+                  if (outputPath && fs.existsSync(outputPath)) {
+                    fs.unlink(outputPath, () => { });
+                  }
+                  if (logId) {
+                    await db.updateUploadLog(logId, 'failed', { errorMessage: err.message });
+                  }
+                  res.statusCode = 500;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ error: err.message }));
+                } finally {
+                  activeUploads--;
+                  processUploadQueue();
                 }
+              };
 
-                // Update upload log state
-                await db.updateUploadLog(logId, 'completed', { youtubeVideoId: newVideoId });
-                logAuditEvent('upload_completed', { videoId: v, youtubeVideoId: newVideoId, channelId });
-
-                // E. Clean up local file
-                fs.unlink(outputPath, (err) => {
-                  if (err) console.error('[ClapClip Dev Server] Error deleting upload file:', err);
-                });
-
-                // F. Respond back
-                res.statusCode = 200;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({
-                  success: true,
-                  videoId: newVideoId,
-                  youtubeUrl: `https://www.youtube.com/watch?v=${newVideoId}`
-                }));
-
-              } catch (err) {
-                console.error('[ClapClip Upload Server Error]:', err);
-                logAuditEvent('upload_failed', { videoId: v, error: err.message, channelId });
-                if (outputPath && fs.existsSync(outputPath)) {
-                  fs.unlink(outputPath, () => {});
-                }
-                if (logId) {
-                  await db.updateUploadLog(logId, 'failed', { errorMessage: err.message });
-                }
-                res.statusCode = 500;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: err.message }));
-              } finally {
-                activeUploads--;
-                processUploadQueue();
-              }
-            };
-
-            uploadQueue.push(runJob);
-            processUploadQueue();
+              uploadQueue.push(runJob);
+              processUploadQueue();
+            });
           });
-        });
 
-        // 7. GET /api/download: Stream local file download
-        server.middlewares.use('/api/download', async (req, res) => {
-          const urlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
-          const videoId = urlParams.get('v');
-          const start = parseFloat(urlParams.get('start') || '0');
-          const end = parseFloat(urlParams.get('end') || '0');
-          const title = urlParams.get('title') || 'clip';
+          // 7. GET /api/download: Stream local file download
+          server.middlewares.use('/api/download', async (req, res) => {
+            const urlParams = new URL(req.url, `http://${req.headers.host}`).searchParams;
+            const videoId = urlParams.get('v');
+            const start = parseFloat(urlParams.get('start') || '0');
+            const end = parseFloat(urlParams.get('end') || '0');
+            const title = urlParams.get('title') || 'clip';
 
-          if (!videoId) {
-            res.statusCode = 400;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'Missing parameter v (video ID)' }));
-            return;
-          }
-
-          if (!validateVideoId(videoId)) {
-            res.statusCode = 400;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'Invalid YouTube video ID format' }));
-            return;
-          }
-
-          if (start < 0 || end <= start) {
-            res.statusCode = 400;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'Invalid start/end parameters' }));
-            return;
-          }
-
-          try {
-            const ytdlpPath = await ensureYtdlpBinary();
-            const tempDir = path.join(__dirname, 'temp');
-            if (!fs.existsSync(tempDir)) {
-              fs.mkdirSync(tempDir, { recursive: true });
+            if (!videoId) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'Missing parameter v (video ID)' }));
+              return;
             }
 
-            const safeTitle = title.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
-            const outputFilename = `clip_${safeTitle}_${Date.now()}.mp4`;
-            const outputPath = path.join(tempDir, outputFilename);
+            if (!validateVideoId(videoId)) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'Invalid YouTube video ID format' }));
+              return;
+            }
 
-            const ytdlpArgs = [
-              '--ffmpeg-location', ffmpegPath,
-              '--js-runtimes', 'node',
-              '--download-sections', `*${start}-${end}`,
-              '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-              '--merge-output-format', 'mp4',
-              `https://www.youtube.com/watch?v=${videoId}`,
-              '-o', outputPath
-            ];
+            if (start < 0 || end <= start) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'Invalid start/end parameters' }));
+              return;
+            }
 
-            console.log(`[ClapClip Dev Server] Starting download: v=${videoId}, start=${start}s, end=${end}s`);
-            
-            const child = spawn(ytdlpPath, ytdlpArgs);
-            
-            let stderrLog = '';
-            child.stderr.on('data', (data) => {
-              stderrLog += data.toString();
-            });
-
-            child.on('close', (code) => {
-              if (code !== 0) {
-                console.error(`[ClapClip Dev Server] yt-dlp failed with exit code ${code}`);
-                res.statusCode = 500;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: 'Failed to download and trim video clip', details: stderrLog }));
-                return;
+            try {
+              const ytdlpPath = await ensureYtdlpBinary();
+              const tempDir = path.join(__dirname, 'temp');
+              if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
               }
 
-              if (!fs.existsSync(outputPath)) {
-                res.statusCode = 500;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({ error: 'Trimmed video file was not found on server' }));
-                return;
-              }
+              const safeTitle = title.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
+              const outputFilename = `clip_${safeTitle}_${Date.now()}.mp4`;
+              const outputPath = path.join(tempDir, outputFilename);
 
-              res.statusCode = 200;
-              res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.mp4"`);
-              res.setHeader('Content-Type', 'video/mp4');
+              const ytdlpArgs = [
+                '--js-runtimes', 'node',
+                '-f', '18',
+                `https://www.youtube.com/watch?v=${videoId}`,
+                '-o', outputPath
+              ];
 
-              const fileStream = fs.createReadStream(outputPath);
-              fileStream.pipe(res);
+              console.log(`[ClapClip Dev Server] Starting download: v=${videoId}, start=${start}s, end=${end}s`);
 
-              res.on('finish', () => {
-                fs.unlink(outputPath, (err) => {
-                  if (err) console.error('[ClapClip Dev Server] Error deleting temp file:', err);
+              const child = spawn(ytdlpPath, ytdlpArgs);
+
+              let stderrLog = '';
+              child.stderr.on('data', (data) => {
+                stderrLog += data.toString();
+              });
+
+              child.on('close', (code) => {
+                if (code !== 0) {
+                  console.error(`[ClapClip Dev Server] yt-dlp failed with exit code ${code}`);
+                  res.statusCode = 500;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ error: 'Failed to download and trim video clip', details: stderrLog }));
+                  return;
+                }
+
+                if (!fs.existsSync(outputPath)) {
+                  res.statusCode = 500;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({ error: 'Trimmed video file was not found on server' }));
+                  return;
+                }
+
+                res.statusCode = 200;
+                res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.mp4"`);
+                res.setHeader('Content-Type', 'video/mp4');
+
+                const fileStream = fs.createReadStream(outputPath);
+                fileStream.pipe(res);
+
+                res.on('finish', () => {
+                  fs.unlink(outputPath, (err) => {
+                    if (err) console.error('[ClapClip Dev Server] Error deleting temp file:', err);
+                  });
                 });
               });
-            });
 
-            req.on('close', () => {
-              if (child && !child.killed) {
-                child.kill();
-              }
-            });
+              req.on('close', () => {
+                if (child && !child.killed) {
+                  child.kill();
+                }
+              });
 
-          } catch (error) {
-            console.error('[ClapClip Dev Server] Internal error:', error);
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'Internal server error', details: error.message }));
-          }
-        });
+            } catch (error) {
+              console.error('[ClapClip Dev Server] Internal error:', error);
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'Internal server error', details: error.message }));
+            }
+          });
+        }
       }
-    }
-  ]
+    ]
   };
 });
