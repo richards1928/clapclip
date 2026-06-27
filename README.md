@@ -1,33 +1,63 @@
-# ClapClip - Premium YouTube Video Clipper
+# 🎬 ClapClip
 
-ClapClip is a sleek, modern, glassmorphic dark-themed web application designed to trim, download, loop, and upload your favorite YouTube moments directly to your channel. It features direct integration with YouTube Data API v3, Google OAuth2, local database persistence, and server-side video processing.
+### Self-Hosted YouTube Video Clipper with Direct Playlist Upload
+
+[![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=flat-square&logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
+[![SQLite](https://img.shields.io/badge/SQLite-07405E?style=flat-square&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![YouTube API](https://img.shields.io/badge/YouTube_API-FF0000?style=flat-square&logo=youtube&logoColor=white)](https://developers.google.com/youtube/v3)
 
 ---
 
-## 🚀 Tech Stack
+ClapClip is a self-hosted web application that allows users to connect their YouTube channel, trim specific portions of YouTube videos using start and end timestamps, upload the generated clip directly to YouTube, and automatically add it to a selected playlist.
 
-### 1. Frontend
-* **UI/UX**: HTML5, Vanilla CSS3 (Glassmorphism design, vibrant color gradients, responsive grid layouts).
-* **Typography**: Modern fonts (Outfit & Plus Jakarta Sans via Google Fonts).
-* **Interactions**: Vanilla Javascript (ES Modules), responsive state bindings.
-* **Build System**: Vite (v5) dev server and compiler.
+---
 
-### 2. Backend
-* **Server**: Node.js middlewares integrated within Vite's developer server (`configureServer` lifecycle).
-* **Database**: SQLite3 (`sqlite3` driver) for local credentials and upload transaction tracking.
-* **Video Utilities**:
-  * `yt-dlp`: Downloads the specific section of a YouTube stream dynamically.
-  * `ffmpeg`: Handles merging audio/video streams and container wrapping into clean `.mp4` files (using static binaries via `ffmpeg-static`).
+## 🚀 Key Features
 
-### 3. Integrations
-* **Google OAuth 2.0**: Consent redirection, access & refresh token rotation, secure client secrets parsing.
-* **YouTube Data API v3**: Channels metadata retrieving, playlists synchronization, multipart video uploads, and playlist item additions.
+* **Google OAuth 2.0 Authentication**: Secure authentication and channel management with access and refresh token rotation.
+* **Multiple YouTube Channel Support**: Connect and manage multiple YouTube channels from a single dashboard.
+* **Playlist Synchronization**: Dynamically fetch and sync playlists from your YouTube channel for automatic targeting.
+* **Timestamp-based Video Clipping**: Trim specific portions of any YouTube video by providing start and end timestamps.
+* **FFmpeg Video Processing**: Server-side video trimming, stream merging, and container wrapping for high-quality `.mp4` outputs.
+* **yt-dlp Integration**: High-performance extraction of stream segments without download overhead for full videos.
+* **Direct Upload to YouTube**: Publish trimmed clips directly to YouTube with automated title, description, and privacy settings.
+* **Automatic Playlist Assignment**: Automatically add clips to selected playlists immediately after a successful upload.
+* **Upload History Dashboard**: Monitor status logs (`pending`, `uploading`, `completed`, `failed`) and upload tracking metrics.
+* **SQLite Database**: Lightweight local data persistence for channels, playlists, and uploads history tracking.
+* **Docker Support**: Containerized environment ensuring all system dependencies (FFmpeg, python3, yt-dlp) are bundled seamlessly.
+* **Railway Deployment Ready**: Production-ready configurations for deployment in cloud environments like Railway.
+
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+* **HTML5**: Structured document layouts.
+* **CSS3**: Premium custom styling featuring a glassmorphic dark-theme design, Outfit & Plus Jakarta Sans typography, and responsive grid structures.
+* **Vanilla JavaScript**: ES Modules managing state bindings, API requests, and event configurations.
+
+### Backend
+* **Node.js**: Server environment executing backend routing.
+* **Vite Middleware**: Dev server framework integration (`configureServer` lifecycle) for unified routing.
+* **SQLite**: Lightweight database persistence via `sqlite3`.
+
+### Libraries & Utilities
+* **yt-dlp**: Segment-based stream extraction wrapper.
+* **FFmpeg**: Merging video/audio streams and final container wrapping (via `ffmpeg-static`).
+* **sqlite3**: DB driver interfacing and query handling.
+* **Google APIs**: YouTube Data API v3 and OAuth 2.0 integration libraries.
+
+### Deployment
+* **Docker / docker-compose**: Multi-stage runner environment.
+* **Railway**: Web app and SQLite deployment optimization.
 
 ---
 
 ## 🏛️ System Architecture
 
-```
+```text
                                   +-----------------------+
                                   |   ClapClip Frontend   |
                                   | (HTML5 / Vanilla CSS) |
@@ -55,7 +85,104 @@ ClapClip is a sleek, modern, glassmorphic dark-themed web application designed t
 
 ---
 
-## 🔄 Core Process Flows
+## 📸 Screenshots
+
+> [!NOTE]
+> Below are UI placeholders representing the modern glassmorphic interface layout.
+
+* **Dashboard Overview**: `[Screenshot Placeholder: Dashboard Screenshot]`
+* **YouTube Upload Flow**: `[Screenshot Placeholder: Clip Upload Form]`
+* **YouTube Channel Connections**: `[Screenshot Placeholder: Connected Channels]`
+* **Upload Audit Logs**: `[Screenshot Placeholder: Upload History]`
+
+---
+
+## 📦 Installation
+
+Ensure you have [Node.js](https://nodejs.org/) (v20+) installed on your machine.
+
+### 1. Set Up Environment Variables
+Create a `.env` file in the project root and add your credentials:
+```env
+GOOGLE_CLIENT_ID=your_google_oauth_client_id
+GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
+API_SECRET=your_api_secret
+ENCRYPTION_KEY=your_encryption_key
+```
+
+### 2. Install Dependencies
+```bash
+npm install
+```
+
+### 3. Run Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:5173/](http://localhost:5173/) in your web browser.
+
+---
+
+## 🐳 Docker Deployment
+
+ClapClip is pre-configured for Docker using a multi-stage Dockerfile that installs all necessary dependencies (`ffmpeg`, `python3`, `yt-dlp`).
+
+### Build & Run via Docker Compose
+To compile the production assets and spin up the container environment, run:
+```bash
+docker-compose up -d --build
+```
+This maps the application to `http://localhost:5173/` and mounts persistent named volumes for the database, logs, and backups.
+
+### Volumes Configuration
+The following volumes are generated dynamically for local data persistence:
+* `clipper_db`: Mounts to `/app/database` tracking SQLite credentials and logs.
+* `backups_volume`: Mounts to `/app/backups` for safety backups.
+* `logs_volume`: Mounts to `/app/logs` tracking transaction outputs.
+
+---
+
+## ⚙️ Environment Variables
+
+| Variable | Description | Required / Optional |
+|---|---|---|
+| `GOOGLE_CLIENT_ID` | Your Google OAuth 2.0 Web Application Client ID. | Required for OAuth |
+| `GOOGLE_CLIENT_SECRET` | Your Google OAuth 2.0 Web Application Client Secret. | Required for OAuth |
+| `API_SECRET` | Secret key used to sign/verify custom API request authorizations. | Optional |
+| `ENCRYPTION_KEY` | Symmetric key used to encrypt cached credentials/tokens in SQLite database. | Required for DB encryption |
+
+---
+
+## 📂 Project Structure
+
+```text
+.
+├── bin/                       # Automatically downloaded platform-specific yt-dlp binaries
+├── dist/                      # Production bundles compiled from source assets
+├── node_modules/              # Node dependencies packages
+├── scratch/                   # Developer script testing folder
+├── src/                       # Main source code directory
+│   ├── db.js                  # Database connection, helper queries, and schema initializer
+│   ├── main.js                # Frontend controllers, event handlers, and API bindings
+│   └── style.css              # Main dark-mode glassmorphic stylesheets
+├── temp/                      # Working folder for downloaded video clips (auto-cleaned)
+├── tests/                     # Integration and unit test cases
+├── .dockerignore              # Specifies files to ignore during Docker builds
+├── .env                       # Environment configuration secrets (GOOGLE_CLIENT_ID/SECRET)
+├── .gitignore                 # Files excluded from git version control
+├── clipper.db                 # Local SQLite database instance (auto-created on start)
+├── docker-compose.yml         # Docker orchestration definition
+├── Dockerfile                 # Container image build configuration
+├── index.html                 # Main interface template file
+├── package.json               # Manifest dependencies configuration
+├── PROJECT_STATUS.md          # Current system status audit document
+├── README.md                  # This file
+└── vite.config.js             # Vite development server, endpoints, and video processing routines
+```
+
+---
+
+## 🔄 How It Works
 
 ### 1. Channel OAuth Connection Flow
 1. **Initiation**: The client clicks "Connect Channel". The frontend queries `GET /api/config` to check if a `.env` file contains credentials.
@@ -85,46 +212,67 @@ ClapClip is a sleek, modern, glassmorphic dark-themed web application designed t
 
 ---
 
-## 📂 Project Structure
+## 🔗 Upload Workflow
 
 ```text
-├── bin/                       # Automatically downloaded platform-specific yt-dlp binaries
-├── dist/                      # Production bundles (generated via npm run build)
-├── node_modules/              # Dependency files
-├── scratch/                   # Developer script testing folder
-├── src/
-│   ├── db.js                  # Database connection, helpers, and tables initializer
-│   ├── main.js                # Frontend controllers, event handlers, and endpoints binder
-│   └── style.css              # Main dark-mode glassmorphic stylesheets
-├── temp/                      # Working folder for downloaded video clips (auto-cleaned)
-├── tests/                     # Integration and unit test cases
-├── .env                       # Environment configuration secrets (GOOGLE_CLIENT_ID/SECRET)
-├── clipper.db                 # Local SQLite database instance (auto-created on start)
-├── index.html                 # Main interface template file
-├── package.json               # Manifest dependencies configuration
-├── PROJECT_STATUS.md          # Current system status audit document
-├── README.md                  # This file
-└── vite.config.js             # Server config, dev server endpoints, and upload processes
+Connect Channel ➔ Sync Playlists ➔ Paste YouTube URL ➔ Select Start & End Time ➔ Generate Trimmed Clip ➔ Upload to YouTube ➔ Automatically Add to Playlist ➔ View Upload History
+```
+
+### Sequence Flow Detail
+
+```mermaid
+sequenceDiagram
+    participant UI as Client UI
+    participant Backend as Express/Vite Dev Server
+    participant DB as SQLite Database
+    participant YT as YouTube API
+    
+    UI->>Backend: POST /api/upload-youtube
+    Note over Backend: Create database record (Status: pending)
+    Backend->>DB: INSERT INTO uploads
+    Backend->>DB: Get Channel credentials (Tokens)
+    DB-->>Backend: Credentials Row
+    Note over Backend: Validate / Refresh access token
+    Backend->>Backend: Trim video using yt-dlp & ffmpeg
+    Note over Backend: Write multipart/related data stream
+    Backend->>YT: POST /upload/youtube/v3/videos
+    YT-->>Backend: Video ID (e.g., TyNJbGOf1ZI)
+    Note over Backend: Execute Playlist Assignment Workflow
+    Backend->>DB: Update uploads (Status: completed, VideoId)
+    Backend->>UI: Respond Success (200 OK)
 ```
 
 ---
 
-## 🛠️ Getting Started
+## 🗺️ Roadmap
 
-### 1. Setup Environment
-Create a `.env` file in the root directory:
-```env
-GOOGLE_CLIENT_ID=your_google_oauth_client_id
-GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
-```
+### Completed Features
+- [x] **OAuth Authentication**: Google OAuth 2.0 flow integrated.
+- [x] **Playlist Sync**: Automatic channel playlists fetching and local database caching.
+- [x] **Upload History**: Persistence tracking of operations inside `clipper.db`.
+- [x] **Direct Upload**: Streamlined clip uploads to authorized channels.
+- [x] **Video Trimming**: High-performance trimming with `yt-dlp` and `ffmpeg`.
 
-### 2. Install Dependencies
-```bash
-npm install
-```
+### Future Milestones
+- [ ] **Retry Failed Uploads**: Automatic queue re-processing.
+- [ ] **Scheduled Uploads**: Cron-style triggers for automated clipping releases.
+- [ ] **Bulk Queue**: Batch paste multiple URLs and timestamps to process simultaneously.
+- [ ] **Search Upload History**: Advanced filtering and search functionality on historical logs.
+- [ ] **Advanced Analytics**: Metrics graphs on clip performance and uploads tracking.
 
-### 3. Run Development Server
-```bash
-npm run dev
-```
-Open [http://localhost:5173/](http://localhost:5173/) in your web browser.
+---
+
+## 🤝 Contributing
+
+Contributions make the open-source community a fantastic place to learn, inspire, and create.
+1. Fork the Project.
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`).
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`).
+4. Push to the Branch (`git push origin feature/AmazingFeature`).
+5. Open a Pull Request.
+
+---
+
+## 📄 License
+
+Distributed under the **MIT License**. See `LICENSE` for more information.

@@ -712,6 +712,12 @@ export default defineConfig(({ mode }) => {
 
                   // Create database metrics record log
                   logId = await db.createUploadLog({ videoId: v, title, startTime: start, endTime: end, playlistId, channelId });
+                  console.log(
+                    '[UPLOAD LOG CREATED]',
+                    logId,
+                    v,
+                    title
+                  );
                   await db.updateUploadLog(logId, 'uploading');
 
                   // A. Get fresh token
@@ -725,18 +731,23 @@ export default defineConfig(({ mode }) => {
                   }
 
                   const safeTitle = title.replace(/[^a-z0-9_-]/gi, '_').toLowerCase();
-                  outputPath = path.join(tempDir, `upload_${safeTitle}_${Date.now()}.mp4`);
+                  const timestamp = Date.now();
 
-                  const fullVideoPath = path.join(
+                  const sourcePath = path.join(
                     tempDir,
-                    `source_${safeTitle}_${Date.now()}.mp4`
+                    `source_${safeTitle}_${timestamp}.mp4`
                   );
 
+                  outputPath = path.join(
+                    tempDir,
+                    `clip_${safeTitle}_${timestamp}.mp4`
+                  );
                   const ytdlpArgs = [
+                    '--ffmpeg-location', ffmpegPath,
                     '--js-runtimes', 'node',
                     '-f', '18',
                     `https://www.youtube.com/watch?v=${v}`,
-                    '-o', fullVideoPath
+                    '-o', sourcePath
                   ];
                   console.log(`[ClapClip Dev Server] Clipping for upload: v=${v}, range=${start}-${end}`);
 
@@ -760,43 +771,47 @@ export default defineConfig(({ mode }) => {
                       if (child && !child.killed) child.kill();
                     });
                   });
-
-                  console.log(`[ClapClip Dev Server] Trimming ${start}s -> ${end}s`);
-
                   await new Promise((resolve, reject) => {
-                    const ffmpeg = spawn(ffmpegPath, [
+                    const ffmpegArgs = [
                       '-y',
                       '-ss', String(start),
-                      '-i', fullVideoPath,
-                      '-t', String(end - start),
+                      '-to', String(end),
+                      '-i', sourcePath,
                       '-c:v', 'libx264',
                       '-c:a', 'aac',
                       outputPath
-                    ]);
+                    ];
 
-                    let ffmpegErr = '';
+                    const ffmpegProcess = spawn(ffmpegPath, ffmpegArgs);
 
-                    ffmpeg.stderr.on('data', (data) => {
-                      ffmpegErr += data.toString();
+                    let ffmpegErrors = '';
+
+                    ffmpegProcess.stderr.on('data', (data) => {
+                      ffmpegErrors += data.toString();
                     });
 
-                    ffmpeg.on('close', (code) => {
+                    ffmpegProcess.on('close', (code) => {
                       if (code !== 0) {
-                        reject(new Error(`ffmpeg trim failed: ${ffmpegErr}`));
+                        reject(new Error(`ffmpeg trim failed: ${ffmpegErrors}`));
                       } else {
                         resolve();
                       }
                     });
                   });
-
-                  fs.unlink(fullVideoPath, () => { });
-
                   if (!fs.existsSync(outputPath)) {
-                    throw new Error('Trimmed clip not found');
+                    throw new Error('Clipping complete but output file not found on server');
                   }
 
                   // C. Upload file to YouTube via multipart related API
                   console.log(`[ClapClip Dev Server] Uploading file to YouTube: ${outputPath}`);
+                  console.log('SOURCE FILE:', sourcePath);
+                  console.log('CLIP FILE:', outputPath);
+
+                  const sourceStat = fs.statSync(sourcePath);
+                  const clipStat = fs.statSync(outputPath);
+
+                  console.log('SOURCE SIZE:', sourceStat.size);
+                  console.log('CLIP SIZE:', clipStat.size);
                   const fileBuffer = fs.readFileSync(outputPath);
                   const boundary = '-------314159265358979323846';
 
@@ -848,7 +863,12 @@ export default defineConfig(({ mode }) => {
                   const uploadData = await uploadRes.json();
                   const newVideoId = uploadData.id;
                   console.log(`[ClapClip Dev Server] Uploaded successfully: videoId = ${newVideoId}`);
-
+                  try {
+                    if (fs.existsSync(sourcePath)) fs.unlinkSync(sourcePath);
+                    if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+                  } catch (err) {
+                    console.warn('Temp file cleanup failed:', err.message);
+                  }
                   // D. Add uploaded video to playlist (if playlist selected)
                   if (playlistId) {
                     console.log(`[ClapClip Dev Server] Assigning video ${newVideoId} to playlist ${playlistId}`);
@@ -961,6 +981,7 @@ export default defineConfig(({ mode }) => {
               const outputPath = path.join(tempDir, outputFilename);
 
               const ytdlpArgs = [
+                '--ffmpeg-location', ffmpegPath,
                 '--js-runtimes', 'node',
                 '-f', '18',
                 `https://www.youtube.com/watch?v=${videoId}`,
