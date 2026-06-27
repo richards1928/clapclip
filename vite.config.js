@@ -418,7 +418,7 @@ export default defineConfig(({ mode }) => {
 
             // Encode secrets into state param to receive them back in callback (stateless oauth)
             const state = Buffer.from(JSON.stringify({ clientId, clientSecret })).toString('base64');
-            const redirectUri = `http://localhost:5173/api/callback`;
+            const redirectUri = `https://clapclip-production.up.railway.app/api/callback`;
 
             const scopes = [
               'https://www.googleapis.com/auth/youtube.upload',
@@ -474,7 +474,7 @@ export default defineConfig(({ mode }) => {
                 throw new Error('Google OAuth credentials not found (missing client ID or client secret)');
               }
 
-              const redirectUri = `http://localhost:5173/api/callback`;
+              const redirectUri = `https://clapclip-production.up.railway.app/api/callback`;
 
               // Exchange authorization code for token
               const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
