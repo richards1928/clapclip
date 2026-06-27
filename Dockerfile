@@ -44,9 +44,8 @@ RUN curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o 
 
 EXPOSE 5173
 
-# Docker healthcheck configuration
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
-    CMD curl -f http://localhost:5173/api/health || exit 1
+    CMD curl -f http://localhost:${PORT:-5173}/api/health || exit 1
 
 # Start server binding globally to allow external routing
 CMD ["npx", "vite", "--host", "0.0.0.0"]
