@@ -305,7 +305,10 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "0.0.0.0",
       port: Number(process.env.PORT) || 5173,
-      strictPort: false
+      strictPort: false,
+      allowedHosts: [
+        "clapclip-production.up.railway.app"
+      ]
     },
     plugins: [
       {
